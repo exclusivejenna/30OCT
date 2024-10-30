@@ -1,0 +1,166 @@
+@page "/"
+@using BCSIT.Models
+@inject DataContext _context
+@inject NavigationManager Navigation
+@using Microsoft.EntityFrameworkCore
+@rendermode InteractiveServer
+
+<div style="text-align: right;">
+    <p>@Message</p>
+</div>
+<button class="btn btn-primary" @onclick="VerifyUser">Verify</button>
+@code {
+    private string Message;
+    private int userID = 1;
+
+    private async Task VerifyUser()
+    {
+        // Set the one-hour threshold for verification attempts
+        var oneHourAgo = DateTime.Now.AddHours(-1);
+        int verificationsCount = await _context.LogVerification
+            .CountAsync(lv => lv.UserID == userID && lv.LoginTime >= oneHourAgo);
+
+        if (verificationsCount >= 3)
+        {
+            Message = "Maximum verification attempts reached.";
+            return;
+        }        
+        var challan = await _context.Challan
+            .Where(c => c.UserID == userID) 
+            .Select(c => new { c.feeSchTypeID, c.Fee }) // Replace with actual column names if different
+            .FirstOrDefaultAsync();
+        if (challan == null)
+        {
+            Message = "Challan record not found for this user.";
+            return;
+        }      
+        decimal feeAmount = challan.Fee;       
+        var logVerification = new LogVerification
+            {
+                LoginTime = DateTime.Now,
+                NoCount = verificationsCount + 1,
+                Fee = feeAmount,
+                UserID = userID
+            };
+        await _context.LogVerification.AddAsync(logVerification);      
+        var instituteBalance = await _context.InstituteBalance
+            .FirstOrDefaultAsync(ib => ib.UserID == userID);
+        if (instituteBalance != null && instituteBalance.Balance >= feeAmount)
+        {
+            instituteBalance.Balance -= feeAmount;
+            _context.InstituteBalance.Update(instituteBalance);           
+            await _context.SaveChangesAsync();
+            Message = "Verification logged and balance updated.";
+        }
+        else
+        {
+            Message = "Insufficient balance or institute balance not found.";
+        }
+    }
+}
+
+
+		======================================================================================================
+
+
+@page "/challanpage"
+@using BCSIT.Models
+@inject DataContext _context
+@rendermode InteractiveServer
+@code
+{
+    private List<Challan> challans = new();
+    protected override async Task OnInitializedAsync()
+    {
+    
+        challans =  _context.Challan.ToList();
+    }
+    private async Task ApproveChallan(Challan challan)
+    {
+        challan.Status = "Approved"; 
+        _context.Challan.Update(challan);
+        await _context.SaveChangesAsync();
+    }
+}
+<h3>Challan Records</h3>        
+<table class="table">
+    <thead>
+        <tr>
+            <th>Challan ID</th>
+            <th>Class ID</th>
+            <th>Group ID</th>
+            <th>Due Date</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var challan in challans)
+        {
+            <tr>
+                <td>@challan.ChallanId</td>
+                <td>@challan.ClassID</td>
+                <td>@challan.GroupID</td>
+                <td>@challan.DueDate?.ToString("yyyy-MM-dd")</td>
+                <td>@challan.Status</td>
+                <td>
+                    @if (challan.Status == "Pending")
+                    {
+                        <button class="btn btn-success" @onclick="() => ApproveChallan(challan)">Approve</button>
+                    }
+                    else
+                    {
+                        <span class="text-muted">Approved</span>
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@page "/conditionalform"
+@using System.Linq
+
+@* This is the result of your LINQ query *@
+@code {
+    bool isEnabled;
+
+    // Assume this is a sample LINQ query result.
+    // Replace with your actual LINQ query.
+    void CheckEnableStatus()
+    {
+        var data = new[] { 1, 2, 3, 4 }; // Sample data
+        isEnabled = data.Any(x => x > 0); // Example condition, modify as needed
+    }
+
+    protected override void OnInitialized()
+    {
+        CheckEnableStatus();
+    }
+}
+
+<h3>Conditional Form Controls</h3>
+
+<form>
+    <div>
+        <label>TextBox 1:</label>
+        <input type="text" disabled="@(!isEnabled)" />
+    </div>
+    
+    <div>
+        <label>TextBox 2:</label>
+        <input type="text" disabled="@(!isEnabled)" />
+    </div>
+    
+    <div>
+        <label>Dropdown:</label>
+        <select disabled="@(!isEnabled)">
+            <option value="1">Option 1</option>
+            <option value="2">Option 2</option>
+        </select>
+    </div>
+    
+    <div>
+        <button type="button" disabled="@(!isEnabled)">Submit</button>
+    </div>
+</form>
