@@ -164,3 +164,33 @@
         <button type="button" disabled="@(!isEnabled)">Submit</button>
     </div>
 </form>
+---------------------------------------------------------------------------------------------------------------------------------
+
+var result = dbContext.Table
+    .Select(x => new 
+    {
+        Column1 = x.Column1 ?? "DefaultValue", // Replace null with a default string
+        Column2 = x.Column2 ?? 0,              // Replace null with a default numeric value
+        Column3 = x.Column3 ?? DateTime.Now    // Replace null with a default date
+    })
+    .ToList();
+================================================================================================================================
+var tmp = context.Empl
+    .Where(u => u.empid == empid)
+    .Select(u => new 
+    {
+        EmpName = u.EmpName ?? "Unknown",          // Default if null
+        Age = u.Age ?? 0,                          // Default if null for int
+        Address = u.Address ?? "Address Not Set",
+        JoinDate = u.JoinDate ?? DateTime.MinValue
+    })
+    .FirstOrDefault();
+
+if (tmp != null)
+{
+    // Access safely
+    Console.WriteLine(tmp.EmpName);
+}
+--------------------------------------------------------------------------------------------------------------------------
+
+
